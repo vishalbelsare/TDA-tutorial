@@ -1,0 +1,174 @@
+---
+title: Introduction to simplex trees
+author: F. Chazal and B. Michel
+output: html_document
+---
+
+```{r setup-r, include=FALSE}
+knitr::opts_chunk$set(fig.align = "center")
+reticulate::use_python("/Library/Frameworks/Python.framework/Versions/3.7/bin/python3", required = TRUE)
+```
+
+TDA typically aims at extracting topological signatures from a point cloud in $\mathbb R^d$ or in a general metric space. By studying the topological of the point clouds, we actually mean studying the topology of unions of balls centered at the point cloud (offsets). However, non-discrete sets such as offsets, and also continuous mathematical shapes like curves, surfaces and more generally manifolds, cannot easily be encoded as finite discrete structures. [Simplicial complexes](https://en.wikipedia.org/wiki/Simplicial_complex) are therefore used in computational geometry to approximate such shapes.
+
+A simplicial complex is a set of [simplices](https://en.wikipedia.org/wiki/Simplex), they can be seen as higher dimensional generalization of graphs. They are mathematical objects that are both topological and combinatorial, a property making them particularly useful for TDA. Here is an example of simplicial complex:
+
+```{r simplicial-complex-example, echo=FALSE}
+knitr::include_graphics("Images/Pers14.PNG")
+```
+ 
+A filtration is a increasing sequence of sub-complexes of a simplicial complex $\mathcal{K}$. It can be seen as ordering the simplices included in the complex. Indeed, simplicial complexes often come with a specific order, as for [Vietoris-Rips complexes](https://en.wikipedia.org/wiki/Vietoris%E2%80%93Rips_complex), [Cech complexes](https://en.wikipedia.org/wiki/%C4%8Cech_complex) and [alpha complexes](https://en.wikipedia.org/wiki/Alpha_shape#Alpha_complex). 
+
+```{python setup-python}
+from IPython.display import Image
+from os import chdir
+import numpy as np
+import gudhi as gd
+import matplotlib.pyplot as plt
+```
+
+In Gudhi, filtered simplicial complexes are encoded through a data structure called simplex tree. 
+
+```{r gudhi-filtration-example, echo=FALSE}
+knitr::include_graphics("http://gudhi.gforge.inria.fr/python/latest/_images/Simplex_tree_representation.png")
+```
+
+This notebook illustrates the use of simplex tree to represent simplicial complexes from data points.
+
+**Aymeric: all of the above is copy paste from README, what is the point?**
+
+See the [Python Gudhi documentation](http://gudhi.gforge.inria.fr/python/latest/simplex_tree_ref.html#) for more details on simplex trees.
+
+## My first simplex tree
+
+Let's create our first simplicial complex, represented by a simplex tree:
+
+```{python st-constructor}
+st = gd.SimplexTree()
+```
+
+The `st` object has class `SimplexTree`. For now, `st` is an empty simplex tree.
+
+The `SimplexTree` class has several useful methods for the practice of TDA, for instance for defining new types of simplicial complexes from existing ones.
+
+**Aymeric: you do not show examples of these methods though, do you?**
+
+### Simplex insertion
+
+The `insert()` method can be used to insert simplices in the simplex tree. In the simplex tree, a vertex is represented as an integer, an edge as a list of two integers corresponding to the connected vertices, a triangle as a list of three integers, etc.
+
+We can for example insert three edges as follows:
+
+```{python}
+st.insert([0, 1])
+st.insert([1, 2])
+st.insert([3, 1])
+```
+
+Observe that the `insert()` method outputs `True` to the console. This happens when the simplex the user is trying to insert into the tree is not in the tree already. It tells the user that the simplex has been successfully inserted into the simplex tree. Conversely, if the simplex is already in the tree, the `insert()` method outputs the boolean `False`, as illustrated by the following piece of code:
+
+```{python}
+st.insert([3, 1])
+```
+
+### Filtration
+
+A filtration of a simplex tree is a list of all the simplices in the tree to which is associated a number called the *filtration value*. Formally, the filtration value of a simplex $S$ is:
+
+- for a **point cloud** $\{x_1, \dots, x_n\}$, the smallest radius $r$ of the balls $\mathcal{B}_{x_i}$ centered in the points of the cloud for which $S \subseteq \bigcup_{i=1}^n \mathcal{B}_{x_i}(r)$;
+- for a **function** $f:X\to Y$, the smallest value $y$ such that $S \subseteq \{x \in X : f(x) \le y\}$.
+
+It is easy to build and store the filtration of a simplex tree thanks to the `get_filtration()` method of the `SimplexTree()` class:
+
+```{python}
+st_list = st.get_filtration() 
+```
+
+The output `st_list` is a list and thus we can iterate over its elements. Each element in the list is a tuple that contains a simplex and its filtration value:
+
+```{python}
+for splx in st_list :
+    print(splx)
+```
+
+Intuitively, the filtration value of a simplex in a filtered complex corresponds to "when" the simplex appears in the filtration. When the `insert()` method is used to add a simplex to a simplex tree, its associated filtration value is set to $0.0$ by default.
+
+Notice that inserting an edge automatically insert its vertices (if they were not already in the complex) in order to satisfy the inclusion property of a filtered complex: any simplex with filtration value $t$ has all its faces in the filtered complex, with filtration values smaller than $t$.
+
+## Simplex tree description
+
+The *dimension* of the simplex tree is defined as the dimension of the largest simplex in the tree. With Gudhi, you can easily compute it via the `dimension()` method:
+
+```{python}
+st.dimension()
+```
+
+You can also retrieve the number of vertices in the simplex tree with the `num_vertices()` method:
+
+```{python}
+st.num_vertices()
+```
+
+You can retrieve the number of simplices in the simplex tree as well through the `num_simplicies()` method:
+
+```{python}
+st.num_simplices()
+```
+
+The [d-skeleton](https://en.wikipedia.org/wiki/N-skeleton) for every dimension $d$ can be also computed with the `get_skeleton_tree()` method:
+
+```{python}
+print(st.get_skeleton(1))
+```
+
+**Aymeric: I think a tuto should be self-contained as much as possible. Could it be possible to give the intuition behind the definition of a d-skeleton here without going to the wikipedia page?**
+
+One can also test if a simplex is already in the filtration with the `find()` method:
+
+```{python}
+st.find([2, 4])
+```
+
+### Filtration values
+
+We can insert simplices with a given filtration value. For example, in the code below, we insert $3$ triangles with $3$ different filtration values in the simplex tree:
+
+```{python}
+st.insert([0, 1, 2], filtration = 0.1)
+st.insert([1, 2, 3], filtration = 0.2)
+st.insert([0, 1, 3], filtration = 0.4)
+st_list = st.get_filtration() 
+
+for splx in st_list :
+    print(splx)
+```
+
+If we add a new simplex with a given filtration value, all its faces **that were not in the complex before** are added with the same filtration value: here the edge $[0, 3]$ has been also inserted and given the filtration value $0.4$.
+
+On the other hand, the filtration value of simplices **that were already in the simplex tree before adding the simplex of higher dimension of which they are a face** is not changed to the filtration value of that higher-dimensional simplex. You can see for example that the filtration value of the edge $[1, 2]$ is still $0.0$ because it first appeared in the tree when including $[1, 2]$ with filtration value $0.0$, even though now, there are also the simplicies $[0, 1, 2]$ and $[1, 2, 3]$ with different filtration values of which $[1, 2]$ is a face. In fact, the `insert()` method prevents the inclusion of a simplex already in the tree so it makes sense that the filtration value is not overwritten.
+
+If one really wants to modify the filtration value of a simplex **that is already in the tree** , (s)he can use the `assign_filtration()` method:
+
+```{python}
+st.assign_filtration([3], filtration = 0.8)
+st_list = st.get_filtration()
+for splx in st_list:
+    print(splx)
+```
+
+However this new simplex tree is not a filtered simplicial complex anymore because the filtration value of the vertex $[3]$ is higher then the filtration value of the edge $[2, 3]$. We can circumvent this issue and convert the simplex tree back into a filtered simplicial complex by using the `make_filtration_non_decreasing()` method:
+
+```{python}
+st.make_filtration_non_decreasing()
+st_list = st.get_filtration()
+for splx in st_list:
+    print(splx)  
+```
+
+As you can see, the simplex tree is converted back into a filtered simplicial complex by forcing the filtration values of simplices of higher dimension to match the filtration values of their faces when they are found to have lower filtration values.
+
+Finally, you can also access the filtration value of a simpex in the tree with the `filtration()` method:
+
+```{python}
+st.filtration([2, 3])
+```
